@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Misi Detektif Aturan di Sekolah</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #FFB800;
+            --secondary: #00B2FF;
+            --success: #00D084;
+            --danger: #FF5A5F;
+            --background: #F0F8FF;
+        }
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: var(--background);
+            background-image: radial-gradient(#e0f2fe 2px, transparent 2px);
+            background-size: 30px 30px;
+            overflow-x: hidden;
+            touch-action: manipulation; /* Mencegah zoom saat double tap di mobile/PID */
+        }
+        h1, h2, h3, .font-display {
+            font-family: 'Fredoka One', cursive;
+        }
+        
+        /* Efek Tombol dan Kartu */
+        .btn-pop {
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+            box-shadow: 0 6px 0 rgba(0,0,0,0.2);
+        }
+        .btn-pop:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 rgba(0,0,0,0.2);
+        }
+        
+        .card-item {
+            cursor: grab;
+            transition: transform 0.2s, box-shadow 0.2s, border 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .card-item:active { cursor: grabbing; }
+        .card-item.selected {
+            border: 4px solid var(--primary);
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(255, 184, 0, 0.6);
+        }
+        .card-item.dragging {
+            opacity: 0.5;
+            transform: scale(1.05);
+        }
+        .card-item.placed {
+            pointer-events: none;
+            opacity: 0.9;
+            transform: scale(0.95);
+            box-shadow: none;
+            border: 2px solid #ccc;
+        }
+
+        .drop-zone {
+            transition: background-color 0.2s, transform 0.2s;
+            border: 4px dashed #cbd5e1;
+        }
+        .drop-zone.drag-over {
+            background-color: #e0f2fe;
+            border-color: var(--secondary);
+            transform: scale(1.02);
+        }
+        .drop-zone.highlight {
+            animation: pulse-border 1.5s infinite;
+        }
+
+        /* Animasi */
+        @keyframes bounce-in {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-bounce-in { animation: bounce-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+        .animate-shake { animation: shake 0.4s ease-in-out; }
+
+        @keyframes pulse-border {
+            0% { border-color: #cbd5e1; box-shadow: 0 0 0 rgba(0,178,255,0); }
+            50% { border-color: var(--secondary); box-shadow: 0 0 15px rgba(0,178,255,0.5); }
+            100% { border-color: #cbd5e1; box-shadow: 0 0 0 rgba(0,178,255,0); }
+        }
+
+        /* Confetti Canvas */
+        #confetti-canvas {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 9999;
+        }
+
+        /* Sembunyikan scrollbar untuk tampilan bersih di PID */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased h-screen flex flex-col">
+
+    <!-- Audio Settings -->
+    <button id="btn-toggle-sound" class="fixed top-4 right-4 z-50 bg-white p-3 rounded-full shadow-lg text-2xl btn-pop" onclick="toggleSound()">
+        🔊
+    </button>
+
+    <!-- Confetti Overlay -->
+    <canvas id="confetti-canvas"></canvas>
+
+    <!-- 1. Halaman Pembuka -->
+    <div id="screen-intro" class="screen flex-1 flex flex-col items-center justify-center p-6 animate-bounce-in">
+        <div class="text-center bg-white p-8 rounded-3xl shadow-2xl max-w-2xl w-full border-4 border-yellow-400">
+            <div class="text-6xl mb-4">🕵️‍♂️🏫✨</div>
+            <h1 class="text-4xl md:text-5xl text-blue-600 mb-6 font-display drop-shadow-sm">Misi Detektif<br>Aturan di Sekolah</h1>
+            <p class="text-xl text-slate-600 mb-8 font-bold">Pendidikan Pancasila - Kelas III SD</p>
+            <div class="flex flex-col md:flex-row gap-4 justify-center">
+                <button onclick="navTo('screen-register')" class="btn-pop bg-yellow-400 text-yellow-900 font-display text-2xl py-4 px-8 rounded-2xl border-2 border-yellow-500 w-full md:w-auto">
+                    🚀 MULAI MISI
+                </button>
+                <button onclick="navTo('screen-instructions')" class="btn-pop bg-blue-400 text-white font-display text-2xl py-4 px-8 rounded-2xl border-2 border-blue-500 w-full md:w-auto">
+                    📖 PETUNJUK
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. Halaman Identitas -->
+    <div id="screen-register" class="screen hidden flex-1 flex flex-col items-center justify-center p-6">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-xl w-full border-4 border-blue-400 animate-bounce-in">
+            <h2 class="text-3xl text-center text-blue-600 mb-6 font-display">Identitas Tim Detektif</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-lg font-bold mb-2">Nama Kelompok (Wajib):</label>
+                    <input type="text" id="input-group-name" class="w-full text-xl p-4 border-2 border-slate-300 rounded-xl focus:border-blue-500 focus:outline-none" placeholder="Cth: Detektif Garuda">
+                </div>
+                <div>
+                    <label class="block text-lg font-bold mb-2">Nama Anggota (Opsional):</label>
+                    <input type="text" id="input-members" class="w-full text-xl p-4 border-2 border-slate-300 rounded-xl focus:border-blue-500 focus:outline-none" placeholder="Cth: Budi, Siti, Andi">
+                </div>
+            </div>
+            <p id="register-error" class="text-red-500 font-bold mt-4 hidden text-center">Tolong isi nama kelompokmu ya!</p>
+            <div class="flex flex-col md:flex-row gap-4 mt-8">
+                <button onclick="navTo('screen-intro')" class="btn-pop bg-slate-200 text-slate-700 font-bold text-xl py-4 px-6 rounded-xl flex-1">Kembali</button>
+                <button onclick="startGame()" class="btn-pop bg-green-400 text-green-900 font-display text-xl py-4 px-6 rounded-xl flex-1 border-2 border-green-500">LANJUTKAN ➡️</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Halaman Petunjuk -->
+    <div id="screen-instructions" class="screen hidden flex-1 flex flex-col items-center justify-center p-4 md:p-6">
+        <div class="bg-white p-6 md:p-8 rounded-3xl shadow-2xl max-w-3xl w-full border-4 border-purple-400 h-full max-h-[90vh] overflow-y-auto">
+            <h2 class="text-3xl text-center text-purple-600 mb-6 font-display">Cara Menjalankan Misi 🕵️‍♀️</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-lg">
+                <div class="bg-purple-50 p-4 rounded-xl border border-purple-200">
+                    <p class="font-bold flex items-center gap-2"><span class="text-3xl">1️⃣</span> Amati Kartu</p>
+                    <p class="ml-10">Lihat dan baca kartu temuan yang ada di bawah.</p>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-xl border border-purple-200">
+                    <p class="font-bold flex items-center gap-2"><span class="text-3xl">2️⃣</span> Pilih atau Tarik</p>
+                    <p class="ml-10">Tarik (Drag) kartu ke kotak kategori yang tepat, ATAU <b>Ketuk kartu</b> lalu <b>Ketuk kotak kategori</b>.</p>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-xl border border-purple-200">
+                    <p class="font-bold flex items-center gap-2"><span class="text-3xl">3️⃣</span> Jawab Analisis</p>
+                    <p class="ml-10">Jika kategorinya benar, kamu harus menjawab alasan kenapa aturan itu dibuat.</p>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-xl border border-purple-200">
+                    <p class="font-bold flex items-center gap-2"><span class="text-3xl">⭐</span> Kumpulkan Poin</p>
+                    <p class="ml-10">Kerja sama dengan kelompokmu dan kumpulkan poin sebanyak-banyaknya!</p>
+                </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-4 mt-8 justify-center">
+                <button onclick="navTo('screen-intro')" class="btn-pop bg-slate-200 text-slate-700 font-bold text-xl py-4 px-8 rounded-xl">Menu Awal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. Halaman Permainan -->
+    <div id="screen-game" class="screen hidden flex-1 flex flex-col p-4 w-full h-full max-w-7xl mx-auto">
+        <!-- Header Game -->
+        <div class="bg-white rounded-2xl shadow-md p-4 mb-4 flex flex-wrap justify-between items-center border-b-4 border-slate-200">
+            <div class="flex items-center gap-4 mb-2 sm:mb-0">
+                <button onclick="requestHome()" class="btn-pop bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold">🏠 Menu</button>
+                <div class="text-lg font-bold text-slate-700">Tim: <span id="display-group-name" class="text-blue-600"></span></div>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="text-xl font-display text-green-500 bg-green-50 px-4 py-2 rounded-xl border border-green-200">
+                    Progres: <span id="game-progress">0/6</span>
+                </div>
+                <div class="text-2xl font-display text-yellow-500 bg-yellow-50 px-4 py-2 rounded-xl border border-yellow-200">
+                    ⭐ <span id="game-score">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Area Drop Kategori (Atas) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 flex-1 min-h-[40vh]">
+            <!-- Kategori A -->
+            <div class="bg-white rounded-2xl shadow-lg border-t-8 border-blue-400 flex flex-col">
+                <div class="p-4 bg-blue-50 text-center rounded-t-xl border-b border-blue-100">
+                    <h3 class="font-display text-lg text-blue-700">KATEGORI A</h3>
+                    <p class="font-bold text-sm text-blue-600">Aturan Berpakaian & Ketertiban</p>
+                </div>
+                <div id="drop-A" class="drop-zone flex-1 p-4 flex flex-col gap-2 overflow-y-auto m-2 rounded-xl" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" onclick="handleDropzoneClick('A')">
+                    <!-- Kartu masuk kesini -->
+                </div>
+            </div>
+            <!-- Kategori B -->
+            <div class="bg-white rounded-2xl shadow-lg border-t-8 border-green-400 flex flex-col">
+                <div class="p-4 bg-green-50 text-center rounded-t-xl border-b border-green-100">
+                    <h3 class="font-display text-lg text-green-700">KATEGORI B</h3>
+                    <p class="font-bold text-sm text-green-600">Aturan Kebersihan & Fasilitas</p>
+                </div>
+                <div id="drop-B" class="drop-zone flex-1 p-4 flex flex-col gap-2 overflow-y-auto m-2 rounded-xl" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" onclick="handleDropzoneClick('B')">
+                </div>
+            </div>
+            <!-- Kategori C -->
+            <div class="bg-white rounded-2xl shadow-lg border-t-8 border-purple-400 flex flex-col">
+                <div class="p-4 bg-purple-50 text-center rounded-t-xl border-b border-purple-100">
+                    <h3 class="font-display text-lg text-purple-700">KATEGORI C</h3>
+                    <p class="font-bold text-sm text-purple-600">Aturan Sikap & Pergaulan</p>
+                </div>
+                <div id="drop-C" class="drop-zone flex-1 p-4 flex flex-col gap-2 overflow-y-auto m-2 rounded-xl" ondrop="drop(event)" ondragover="allowDrop(event)" ondragleave="dragLeave(event)" onclick="handleDropzoneClick('C')">
+                </div>
+            </div>
+        </div>
+
+        <!-- Area Kartu Sumber (Bawah) -->
+        <div class="bg-white p-4 rounded-2xl shadow-lg border-4 border-slate-200">
+            <h3 class="text-center font-bold text-slate-500 mb-4 text-lg">⬇️ Tarik kartu di bawah ini ke kotak yang tepat (atau Ketuk Kartu lalu Ketuk Kotak) ⬇️</h3>
+            <div id="card-container" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <!-- Cards dirender via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. Modal Analisis (Pop-up Pertanyaan) -->
+    <div id="modal-analysis" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl p-6 md:p-8 max-w-2xl w-full shadow-2xl animate-bounce-in border-4 border-yellow-400">
+            <div class="text-center mb-6">
+                <span class="text-5xl" id="modal-icon">❓</span>
+                <h2 class="text-2xl font-display text-slate-800 mt-2">Analisis Aturan</h2>
+                <p id="modal-card-text" class="text-lg font-bold text-blue-600 bg-blue-50 inline-block px-4 py-2 rounded-xl mt-2"></p>
+            </div>
+            <p id="modal-question" class="text-xl md:text-2xl text-center mb-8 font-bold text-slate-700"></p>
+            <div id="modal-options" class="flex flex-col gap-4">
+                <!-- Opsi dirender via JS -->
+            </div>
+            
+            <!-- Area feedback setelah menjawab -->
+            <div id="modal-feedback" class="hidden mt-6 text-center p-4 rounded-xl">
+                <p id="modal-feedback-text" class="text-xl font-bold mb-4"></p>
+                <button onclick="closeAnalysisModal()" class="btn-pop bg-blue-500 text-white font-display text-xl py-3 px-8 rounded-xl border-2 border-blue-600">Lanjutkan Misi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 6. Halaman Hasil -->
+    <div id="screen-result" class="screen hidden flex-1 flex flex-col items-center justify-center p-6">
+        <div class="bg-white p-6 md:p-10 rounded-3xl shadow-2xl max-w-3xl w-full border-4 border-yellow-400 text-center h-full max-h-[95vh] overflow-y-auto">
+            <h2 class="text-4xl text-blue-600 mb-2 font-display">Misi Selesai! 🎉</h2>
+            <h3 id="result-group-name" class="text-2xl font-bold text-slate-700 mb-6"></h3>
+            
+            <div class="flex justify-center mb-6">
+                <div id="badge-display" class="text-8xl animate-bounce-in drop-shadow-lg">🎖️</div>
+            </div>
+            
+            <h4 id="badge-title" class="text-3xl font-display text-yellow-500 mb-6 bg-yellow-50 inline-block px-6 py-2 rounded-full border border-yellow-200"></h4>
+
+            <div class="grid grid-cols-2 gap-4 mb-8 text-left max-w-md mx-auto">
+                <div class="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                    <p class="text-sm text-slate-500 font-bold">Skor Pengelompokan</p>
+                    <p class="text-2xl font-display text-blue-600" id="res-cat-score">0</p>
+                </div>
+                <div class="bg-green-50 p-4 rounded-xl border border-green-100">
+                    <p class="text-sm text-slate-500 font-bold">Skor Analisis</p>
+                    <p class="text-2xl font-display text-green-600" id="res-ana-score">0</p>
+                </div>
+                <div class="col-span-2 bg-yellow-50 p-4 rounded-xl border border-yellow-200 text-center">
+                    <p class="text-sm text-slate-500 font-bold">Total Skor Keseluruhan</p>
+                    <p class="text-4xl font-display text-yellow-600" id="res-total-score">0 / 120</p>
+                    <p class="text-lg font-bold text-slate-600 mt-1" id="res-percentage">0%</p>
+                </div>
+            </div>
+
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-8 text-left">
+                <h4 class="font-bold text-lg mb-2 text-slate-700">Pertanyaan Refleksi (Diskusikan dengan guru):</h4>
+                <ol class="list-decimal list-inside space-y-1 text-slate-600 font-semibold">
+                    <li>Aturan apa yang paling penting menurut kelompokmu?</li>
+                    <li>Mengapa aturan itu perlu dipatuhi?</li>
+                    <li>Apa yang akan kamu lakukan untuk menjaga ketertiban sekolah?</li>
+                </ol>
+            </div>
+
+            <div class="flex flex-wrap gap-4 justify-center">
+                <button onclick="resetGame()" class="btn-pop bg-green-500 text-white font-bold text-lg py-3 px-6 rounded-xl">🔄 Main Lagi</button>
+                <button onclick="downloadCSV()" class="btn-pop bg-blue-500 text-white font-bold text-lg py-3 px-6 rounded-xl">📊 Unduh CSV</button>
+                <button onclick="navTo('screen-intro')" class="btn-pop bg-slate-200 text-slate-700 font-bold text-lg py-3 px-6 rounded-xl">🏠 Menu Awal</button>
+            </div>
+            
+            <p class="text-xs text-slate-400 mt-6">*Guru dapat mengumpulkan file CSV ini sebagai laporan nilai.</p>
+        </div>
+    </div>
+
+    <!-- Modal Konfirmasi Universal (Mengganti window.confirm) -->
+    <div id="modal-confirm" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center z-[100] p-4">
+        <div class="bg-white rounded-3xl p-6 md:p-8 max-w-sm w-full shadow-2xl text-center">
+            <h3 class="text-2xl font-display text-slate-800 mb-4">⚠️ Perhatian</h3>
+            <p id="confirm-message" class="text-lg font-bold text-slate-600 mb-8">Apakah kamu yakin?</p>
+            <div class="flex gap-4">
+                <button id="btn-confirm-no" class="btn-pop flex-1 bg-slate-200 text-slate-700 font-bold text-lg py-3 rounded-xl">Tidak</button>
+                <button id="btn-confirm-yes" class="btn-pop flex-1 bg-red-500 text-white font-bold text-lg py-3 rounded-xl">Ya, Yakin</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* --- DATA SOAL --- */
+        const gameData = [
+            {
+                id: "c1", category: "A", icon: "👔",
+                text: "Memakai seragam sesuai ketentuan sekolah",
+                question: "Mengapa kita harus memakai seragam sesuai ketentuan sekolah?",
+                options: [
+                    { text: "Melatih kedisiplinan dan menunjukkan persatuan", correct: true },
+                    { text: "Agar terlihat berbeda dari teman lain", correct: false },
+                    { text: "Karena bajunya baru dibeli", correct: false }
+                ]
+            },
+            {
+                id: "c2", category: "A", icon: "⏰",
+                text: "Datang ke sekolah tepat waktu",
+                question: "Mengapa kita harus datang ke sekolah tepat waktu?",
+                options: [
+                    { text: "Agar tidak tertinggal kegiatan pembelajaran", correct: true },
+                    { text: "Agar bisa mengganggu teman yang piket", correct: false },
+                    { text: "Agar bisa tidur di kelas lebih awal", correct: false }
+                ]
+            },
+            {
+                id: "c3", category: "A", icon: "🚶‍♂️",
+                text: "Masuk kelas dengan tertib",
+                question: "Mengapa kita harus masuk kelas dengan tertib?",
+                options: [
+                    { text: "Agar suasana belajar menjadi tenang dan tidak berdesakan", correct: true },
+                    { text: "Agar bisa berlari-lari di dalam kelas", correct: false },
+                    { text: "Agar teman lain terkejut", correct: false }
+                ]
+            },
+            {
+                id: "c4", category: "B", icon: "🗑️",
+                text: "Membuang sampah pada tempatnya",
+                question: "Mengapa kita harus membuang sampah pada tempatnya?",
+                options: [
+                    { text: "Agar kelas dan sekolah menjadi bersih dan sehat", correct: true },
+                    { text: "Agar sampah menumpuk di meja teman", correct: false },
+                    { text: "Agar petugas kebersihan kewalahan", correct: false }
+                ]
+            },
+            {
+                id: "c5", category: "B", icon: "🪑",
+                text: "Menjaga meja, kursi, dan fasilitas sekolah",
+                question: "Mengapa kita harus menjaga meja dan kursi di kelas?",
+                options: [
+                    { text: "Agar fasilitas awet dan bisa terus digunakan dengan nyaman", correct: true },
+                    { text: "Agar meja bisa dicoret-coret sesuka hati", correct: false },
+                    { text: "Agar kursi cepat rusak dan diganti baru", correct: false }
+                ]
+            },
+            {
+                id: "c6", category: "C", icon: "👨‍🏫",
+                text: "Menghormati guru ketika menjelaskan",
+                question: "Mengapa kita harus menghormati guru ketika beliau menjelaskan?",
+                options: [
+                    { text: "Agar ilmu mudah dipahami dan kelas berjalan lancar", correct: true },
+                    { text: "Agar guru marah dan memberi hukuman", correct: false },
+                    { text: "Agar teman tidak boleh bertanya sama sekali", correct: false }
+                ]
+            }
+        ];
+
+        /* --- STATE APLIKASI --- */
+        let state = {
+            groupName: "",
+            members: "",
+            scoreCategorization: 0,
+            scoreAnalysis: 0,
+            progress: 0,
+            activeCardId: null,      // Untuk fallback tap-to-select
+            currentModalCard: null,  // Kartu yang sedang dianalisis
+            soundEnabled: true,
+            completedCards: []
+        };
+
+        /* --- AUDIO SYSTEM (Web Audio API) --- */
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        let audioCtx;
+
+        function initAudio() {
+            if (!audioCtx) audioCtx = new AudioContext();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playSound(type) {
+            if (!state.soundEnabled) return;
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'click') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'success') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(600, audioCtx.currentTime + 0.1);
+                osc.frequency.setValueAtTime(800, audioCtx.currentTime + 0.2);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'error') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(150, audioCtx.currentTime + 0.2);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+            } else if (type === 'win') {
+                osc.type = 'square';
+                // Simple arpeggio
+                [440, 554, 659, 880].forEach((freq, i) => {
+                    setTimeout(() => {
+                        if(!state.soundEnabled) return;
+                        const o = audioCtx.createOscillator();
+                        const g = audioCtx.createGain();
+                        o.connect(g); g.connect(audioCtx.destination);
+                        o.type = 'triangle';
+                        o.frequency.value = freq;
+                        g.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                        g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                        o.start(); o.stop(audioCtx.currentTime + 0.3);
+                    }, i * 150);
+                });
+            }
+        }
+
+        function toggleSound() {
+            state.soundEnabled = !state.soundEnabled;
+            document.getElementById('btn-toggle-sound').innerText = state.soundEnabled ? '🔊' : '🔇';
+            if (state.soundEnabled) playSound('click');
+        }
+
+        // Listener untuk tombol click umum
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('button')) playSound('click');
+        });
+
+        /* --- STREAMING_CHUNK:Navigasi dan UI --- */
+        function navTo(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+            const target = document.getElementById(screenId);
+            target.classList.remove('hidden');
+            
+            // Re-trigger animation
+            target.classList.remove('animate-bounce-in');
+            void target.offsetWidth; // trigger reflow
+            target.classList.add('animate-bounce-in');
+        }
+
+        function customConfirm(message, onYes) {
+            const modal = document.getElementById('modal-confirm');
+            document.getElementById('confirm-message').innerText = message;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            
+            const btnYes = document.getElementById('btn-confirm-yes');
+            const btnNo = document.getElementById('btn-confirm-no');
+            
+            // Remove old listeners to prevent multiple triggers
+            const newBtnYes = btnYes.cloneNode(true);
+            const newBtnNo = btnNo.cloneNode(true);
+            btnYes.parentNode.replaceChild(newBtnYes, btnYes);
+            btnNo.parentNode.replaceChild(newBtnNo, btnNo);
+
+            newBtnYes.addEventListener('click', () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                onYes();
+            });
+            newBtnNo.addEventListener('click', () => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            });
+        }
+
+        function requestHome() {
+            if (state.progress > 0 && state.progress < 6) {
+                customConfirm("Permainan belum selesai. Yakin ingin kembali ke Menu Awal? Progres saat ini akan hilang.", () => {
+                    navTo('screen-intro');
+                });
+            } else {
+                navTo('screen-intro');
+            }
+        }
+
+        /* --- CORE GAME LOGIC --- */
+        function startGame() {
+            const groupInput = document.getElementById('input-group-name').value.trim();
+            if (!groupInput) {
+                document.getElementById('register-error').classList.remove('hidden');
+                playSound('error');
+                return;
+            }
+            document.getElementById('register-error').classList.add('hidden');
+            
+            state = {
+                groupName: groupInput,
+                members: document.getElementById('input-members').value.trim(),
+                scoreCategorization: 0,
+                scoreAnalysis: 0,
+                progress: 0,
+                activeCardId: null,
+                currentModalCard: null,
+                soundEnabled: state.soundEnabled, // pertahankan state suara
+                completedCards: []
+            };
+
+            document.getElementById('display-group-name').innerText = state.groupName;
+            updateScoreUI();
+            
+            renderCards();
+            clearDropZones();
+            navTo('screen-game');
+        }
+
+        function resetGame() {
+            document.getElementById('input-group-name').value = state.groupName; // Keep name
+            startGame();
+        }
+
+        /* --- STREAMING_CHUNK:Sistem Drag and Drop & Fallback Tap --- */
+        function renderCards() {
+            const container = document.getElementById('card-container');
+            container.innerHTML = '';
+            
+            // Acak kartu
+            const shuffled = [...gameData].sort(() => Math.random() - 0.5);
+
+            shuffled.forEach(card => {
+                const div = document.createElement('div');
+                div.id = card.id;
+                div.className = 'card-item bg-white p-3 rounded-xl border-2 border-slate-300 flex flex-col items-center text-center select-none';
+                div.draggable = true;
+                
+                div.innerHTML = `
+                    <div class="text-4xl mb-2">${card.icon}</div>
+                    <div class="text-sm font-bold text-slate-700 leading-tight">${card.text}</div>
+                `;
+
+                // Event Listener Native Drag
+                div.addEventListener('dragstart', dragStart);
+                div.addEventListener('dragend', dragEnd);
+
+                // Event Listener Fallback Tap-to-select (Khusus PID/Mobile yang susah drag)
+                div.addEventListener('click', () => handleCardClick(card.id));
+
+                container.appendChild(div);
+            });
+        }
+
+        function clearDropZones() {
+            ['A', 'B', 'C'].forEach(cat => {
+                document.getElementById(`drop-${cat}`).innerHTML = '';
+            });
+        }
+
+        // --- Native Drag & Drop Handlers ---
+        function dragStart(e) {
+            e.dataTransfer.setData('text/plain', e.target.id);
+            setTimeout(() => e.target.classList.add('dragging'), 0);
+            
+            // Highlight dropzones
+            document.querySelectorAll('.drop-zone').forEach(z => z.classList.add('highlight'));
+        }
+
+        function dragEnd(e) {
+            e.target.classList.remove('dragging');
+            document.querySelectorAll('.drop-zone').forEach(z => {
+                z.classList.remove('highlight');
+                z.classList.remove('drag-over');
+            });
+        }
+
+        function allowDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        function dragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function drop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            const cardId = e.dataTransfer.getData('text/plain');
+            const targetCategory = e.currentTarget.id.split('-')[1]; // drop-A -> A
+            processMove(cardId, targetCategory);
+        }
+
+        // --- Fallback Tap Handlers (Click Card -> Click Dropzone) ---
+        function handleCardClick(cardId) {
+            if(state.completedCards.includes(cardId)) return; // Abaikan jika sudah selesai
+
+            // Hapus seleksi sebelumnya
+            document.querySelectorAll('.card-item').forEach(c => c.classList.remove('selected'));
+            document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('highlight'));
+
+            if (state.activeCardId === cardId) {
+                // Deselect jika diklik lagi
+                state.activeCardId = null;
+            } else {
+                // Select
+                state.activeCardId = cardId;
+                document.getElementById(cardId).classList.add('selected');
+                // Beri petunjuk visual ke kotak
+                document.querySelectorAll('.drop-zone').forEach(z => z.classList.add('highlight'));
+            }
+        }
+
+        function handleDropzoneClick(targetCategory) {
+            if (state.activeCardId) {
+                processMove(state.activeCardId, targetCategory);
+                document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('highlight'));
+                state.activeCardId = null;
+            }
+        }
+
+        /* --- STREAMING_CHUNK:Validasi dan Modal Analisis --- */
+        function processMove(cardId, targetCategory) {
+            const cardData = gameData.find(c => c.id === cardId);
+            const cardElement = document.getElementById(cardId);
+
+            if (!cardData || state.completedCards.includes(cardId)) return;
+
+            cardElement.classList.remove('selected');
+
+            if (cardData.category === targetCategory) {
+                // Kategori Benar
+                playSound('success');
+                state.scoreCategorization += 10;
+                
+                // Pindahkan elemen secara visual ke dropzone
+                const dropZone = document.getElementById(`drop-${targetCategory}`);
+                cardElement.classList.add('placed', 'animate-bounce-in');
+                cardElement.draggable = false;
+                dropZone.appendChild(cardElement);
+                
+                // Tampilkan Modal Analisis
+                setTimeout(() => openAnalysisModal(cardData), 500);
+
+            } else {
+                // Kategori Salah
+                playSound('error');
+                cardElement.classList.add('animate-shake');
+                setTimeout(() => cardElement.classList.remove('animate-shake'), 400);
+                
+                // Jika pakai sistem select, kembalikan warna
+                if(state.activeCardId) {
+                    state.activeCardId = null;
+                    document.querySelectorAll('.drop-zone').forEach(z => z.classList.remove('highlight'));
+                }
+            }
+            updateScoreUI();
+        }
+
+        function openAnalysisModal(cardData) {
+            state.currentModalCard = cardData;
+            
+            document.getElementById('modal-icon').innerText = cardData.icon;
+            document.getElementById('modal-card-text').innerText = cardData.text;
+            document.getElementById('modal-question').innerText = cardData.question;
+            
+            const optionsContainer = document.getElementById('modal-options');
+            optionsContainer.innerHTML = '';
+            document.getElementById('modal-feedback').classList.add('hidden');
+            optionsContainer.classList.remove('hidden');
+
+            // Acak opsi jawaban
+            const shuffledOptions = [...cardData.options].sort(() => Math.random() - 0.5);
+
+            shuffledOptions.forEach((opt, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-pop w-full text-left p-4 bg-slate-50 border-2 border-slate-200 rounded-xl font-bold text-slate-700 hover:bg-slate-100 text-lg transition-colors';
+                btn.innerHTML = `<span class="inline-block w-8 font-display text-blue-500">${String.fromCharCode(65 + index)}.</span> ${opt.text}`;
+                btn.onclick = () => checkAnalysisAnswer(opt, btn);
+                optionsContainer.appendChild(btn);
+            });
+
+            const modal = document.getElementById('modal-analysis');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function checkAnalysisAnswer(selectedOption, buttonElement) {
+            const optionsContainer = document.getElementById('modal-options');
+            const feedback = document.getElementById('modal-feedback');
+            const feedbackText = document.getElementById('modal-feedback-text');
+
+            // Nonaktifkan semua tombol
+            Array.from(optionsContainer.children).forEach(btn => btn.disabled = true);
+
+            optionsContainer.classList.add('hidden');
+            feedback.classList.remove('hidden');
+
+            if (selectedOption.correct) {
+                playSound('success');
+                state.scoreAnalysis += 10;
+                buttonElement.classList.replace('border-slate-200', 'border-green-500');
+                buttonElement.classList.replace('bg-slate-50', 'bg-green-100');
+                
+                feedbackText.innerHTML = "✨ <b>Hebat!</b> Jawaban kelompokmu sangat tepat. Alasan ini sangat penting agar sekolah menjadi tempat yang nyaman.";
+                feedbackText.className = "text-xl font-bold mb-4 text-green-600";
+            } else {
+                playSound('error');
+                buttonElement.classList.replace('border-slate-200', 'border-red-500');
+                buttonElement.classList.replace('bg-slate-50', 'bg-red-100');
+                
+                // Cari jawaban benar untuk edukasi
+                const correctOpt = state.currentModalCard.options.find(o => o.correct);
+                feedbackText.innerHTML = `😅 <b>Kurang Tepat.</b><br><br><span class="text-lg text-slate-600">Alasan yang lebih tepat adalah:<br><b>${correctOpt.text}</b></span>`;
+                feedbackText.className = "text-xl font-bold mb-4 text-red-600";
+            }
+
+            state.completedCards.push(state.currentModalCard.id);
+            state.progress++;
+            updateScoreUI();
+        }
+
+        function closeAnalysisModal() {
+            const modal = document.getElementById('modal-analysis');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+
+            if (state.progress >= 6) {
+                setTimeout(showResults, 500);
+            }
+        }
+
+        function updateScoreUI() {
+            document.getElementById('game-progress').innerText = `${state.progress}/6`;
+            document.getElementById('game-score').innerText = state.scoreCategorization + state.scoreAnalysis;
+        }
+
+        /* --- STREAMING_CHUNK:Hasil, Lencana, dan Efek Confetti --- */
+        function showResults() {
+            playSound('win');
+            fireConfetti();
+            
+            const totalScore = state.scoreCategorization + state.scoreAnalysis;
+            const percentage = Math.round((totalScore / 120) * 100);
+
+            document.getElementById('result-group-name').innerText = `Tim: ${state.groupName}`;
+            document.getElementById('res-cat-score').innerText = state.scoreCategorization;
+            document.getElementById('res-ana-score').innerText = state.scoreAnalysis;
+            document.getElementById('res-total-score').innerText = `${totalScore} / 120`;
+            document.getElementById('res-percentage').innerText = `Ketepatan: ${percentage}%`;
+
+            let badgeTitle = "";
+            let badgeIcon = "";
+            if (percentage >= 90) { badgeTitle = "Detektif Aturan Hebat"; badgeIcon = "🏆"; }
+            else if (percentage >= 75) { badgeTitle = "Detektif Cerdas"; badgeIcon = "🥇"; }
+            else if (percentage >= 60) { badgeTitle = "Detektif Muda"; badgeIcon = "🥈"; }
+            else { badgeTitle = "Detektif Pantang Menyerah"; badgeIcon = "💪"; }
+
+            document.getElementById('badge-title').innerText = badgeTitle;
+            document.getElementById('badge-display').innerText = badgeIcon;
+
+            navTo('screen-result');
+        }
+
+        // Simple Confetti Generator
+        function fireConfetti() {
+            const canvas = document.getElementById('confetti-canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            const pieces = [];
+            const colors = ['#FFB800', '#00B2FF', '#00D084', '#FF5A5F', '#9b59b6'];
+            
+            for (let i = 0; i < 100; i++) {
+                pieces.push({
+                    x: canvas.width / 2,
+                    y: canvas.height / 2 + 100,
+                    vx: (Math.random() - 0.5) * 20,
+                    vy: (Math.random() - 1) * 20 - 5,
+                    size: Math.random() * 10 + 5,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    rot: Math.random() * 360,
+                    rotSpeed: (Math.random() - 0.5) * 10
+                });
+            }
+
+            let animationId;
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                let active = false;
+                pieces.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.5; // gravity
+                    p.rot += p.rotSpeed;
+                    
+                    if (p.y < canvas.height) active = true;
+
+                    ctx.save();
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.rot * Math.PI / 180);
+                    ctx.fillStyle = p.color;
+                    ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size);
+                    ctx.restore();
+                });
+                
+                if (active) {
+                    animationId = requestAnimationFrame(draw);
+                } else {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                }
+            }
+            draw();
+        }
+
+        /* --- STREAMING_CHUNK:Ekspor Data CSV --- */
+        function downloadCSV() {
+            const date = new Date().toLocaleDateString('id-ID');
+            const totalScore = state.scoreCategorization + state.scoreAnalysis;
+            const percentage = Math.round((totalScore / 120) * 100);
+            
+            // Header CSV
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Tanggal,Nama Kelompok,Anggota,Skor Pengelompokan,Skor Analisis,Total Skor,Persentase\n";
+            
+            // Data row
+            const row = [
+                date,
+                `"${state.groupName}"`,
+                `"${state.members || '-'}"`,
+                state.scoreCategorization,
+                state.scoreAnalysis,
+                totalScore,
+                `${percentage}%`
+            ].join(",");
+            
+            csvContent += row + "\n";
+
+            // Trigger download
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `Hasil_Detektif_Aturan_${state.groupName.replace(/\s+/g, '_')}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+    </script>
+</body>
+</html>
